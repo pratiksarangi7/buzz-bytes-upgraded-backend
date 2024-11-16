@@ -41,5 +41,30 @@ class TweetService {
             return tweets;
         });
     }
+    static likeTweet(tweetId, userId) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const rateLimitFlag = yield redis_1.redisClient.get(`RATE_LIMIT:LIKE:${userId}-${tweetId}`);
+            if (rateLimitFlag)
+                throw new Error("Wait for atleast 10 secs...");
+            const existingLike = yield db_1.prismaClient.like.findUnique({
+                where: { userId_tweetId: { tweetId, userId } },
+            });
+            if (existingLike)
+                return false;
+            yield db_1.prismaClient.like.create({
+                data: {
+                    tweet: { connect: { id: tweetId } },
+                    user: { connect: { id: userId } },
+                },
+            });
+            yield redis_1.redisClient.setex(`RATE_LIMIT:LIKE:${userId}-${tweetId}`, 10, 1);
+            yield redis_1.redisClient.del("ALL_TWEETS");
+        });
+    }
+    static unlikeTweet(tweetId, userId) {
+        return __awaiter(this, void 0, void 0, function* () {
+            yield db_1.prismaClient.like.delete({ where: { userId_tweetId: { userId, tweetId } } });
+        });
+    }
 }
 exports.default = TweetService;

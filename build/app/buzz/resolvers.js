@@ -13,6 +13,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.resolvers = void 0;
+const db_1 = require("../../clients/db");
 const client_s3_1 = require("@aws-sdk/client-s3");
 const s3_request_presigner_1 = require("@aws-sdk/s3-request-presigner");
 const user_1 = __importDefault(require("../../services/user"));
@@ -46,10 +47,40 @@ const mutations = {
         const tweet = yield buzz_1.default.createTweet(Object.assign(Object.assign({}, payload), { userId: ctx.user.id }));
         return tweet;
     }),
+    likeTweet: (parent_1, _a, ctx_1) => __awaiter(void 0, [parent_1, _a, ctx_1], void 0, function* (parent, { tweetId }, ctx) {
+        if (!ctx.user)
+            throw new Error("You are not authenticated!!");
+        yield buzz_1.default.likeTweet(tweetId, ctx.user.id);
+        return true;
+    }),
+    unlikeTweet: (parent_1, _a, ctx_1) => __awaiter(void 0, [parent_1, _a, ctx_1], void 0, function* (parent, { tweetId }, ctx) {
+        var _b;
+        if (!ctx.user)
+            throw new Error("You are not authenticated!!");
+        yield buzz_1.default.unlikeTweet(tweetId, (_b = ctx.user) === null || _b === void 0 ? void 0 : _b.id);
+        return true;
+    }),
 };
 const extraResolvers = {
     Tweet: {
         author: (parent) => user_1.default.getUserById(parent.authorId),
+        isLiked: (parent, args, ctx) => __awaiter(void 0, void 0, void 0, function* () {
+            if (!ctx.user)
+                return false;
+            const likeExists = yield db_1.prismaClient.like.findUnique({
+                where: { userId_tweetId: { userId: ctx.user.id, tweetId: parent.id } },
+            });
+            console.log("resolved!!!");
+            return Boolean(likeExists);
+        }),
+        likeCount: (parent) => __awaiter(void 0, void 0, void 0, function* () {
+            console.log("Starting like count resolve");
+            const cnt = yield db_1.prismaClient.like.count({
+                where: { tweetId: parent.id },
+            });
+            console.log("Resolved");
+            return cnt;
+        }),
     },
 };
 exports.resolvers = { queries, mutations, extraResolvers };

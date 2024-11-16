@@ -48,11 +48,46 @@ const mutations = {
     });
     return tweet;
   },
+  likeTweet: async (
+    parent: any,
+    { tweetId }: { tweetId: string },
+    ctx: GraphqlContext
+  ) => {
+    if (!ctx.user) throw new Error("You are not authenticated!!");
+
+    await TweetService.likeTweet(tweetId, ctx.user.id);
+    return true;
+  },
+  unlikeTweet: async (
+    parent: any,
+    { tweetId }: { tweetId: string },
+    ctx: GraphqlContext
+  ) => {
+    if (!ctx.user) throw new Error("You are not authenticated!!");
+    await TweetService.unlikeTweet(tweetId, ctx.user?.id);
+    return true;
+  },
 };
 
 const extraResolvers = {
   Tweet: {
     author: (parent: Tweet) => UserService.getUserById(parent.authorId),
+    isLiked: async (parent: Tweet, args: any, ctx: GraphqlContext) => {
+      if (!ctx.user) return false;
+      const likeExists = await prismaClient.like.findUnique({
+        where: { userId_tweetId: { userId: ctx.user.id, tweetId: parent.id } },
+      });
+      console.log("resolved!!!");
+      return Boolean(likeExists);
+    },
+    likeCount: async (parent: Tweet) => {
+      console.log("Starting like count resolve");
+      const cnt = await prismaClient.like.count({
+        where: { tweetId: parent.id },
+      });
+      console.log("Resolved");
+      return cnt;
+    },
   },
 };
 
