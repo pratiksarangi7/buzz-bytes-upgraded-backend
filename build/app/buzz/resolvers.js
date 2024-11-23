@@ -47,6 +47,18 @@ const mutations = {
         const tweet = yield buzz_1.default.createTweet(Object.assign(Object.assign({}, payload), { userId: ctx.user.id }));
         return tweet;
     }),
+    createComment: (parent_1, _a, ctx_1) => __awaiter(void 0, [parent_1, _a, ctx_1], void 0, function* (parent, { payload }, ctx) {
+        if (!ctx.user)
+            throw new Error("You are not authenticated!!");
+        const comment = yield db_1.prismaClient.comment.create({
+            data: {
+                content: payload.content,
+                tweet: { connect: { id: payload.tweetId } },
+                author: { connect: { id: ctx.user.id } },
+            },
+        });
+        return comment;
+    }),
     likeTweet: (parent_1, _a, ctx_1) => __awaiter(void 0, [parent_1, _a, ctx_1], void 0, function* (parent, { tweetId }, ctx) {
         if (!ctx.user)
             throw new Error("You are not authenticated!!");
@@ -70,17 +82,24 @@ const extraResolvers = {
             const likeExists = yield db_1.prismaClient.like.findUnique({
                 where: { userId_tweetId: { userId: ctx.user.id, tweetId: parent.id } },
             });
-            console.log("resolved!!!");
             return Boolean(likeExists);
         }),
         likeCount: (parent) => __awaiter(void 0, void 0, void 0, function* () {
-            console.log("Starting like count resolve");
             const cnt = yield db_1.prismaClient.like.count({
                 where: { tweetId: parent.id },
             });
-            console.log("Resolved");
             return cnt;
         }),
+        comments: (parent) => __awaiter(void 0, void 0, void 0, function* () {
+            const comments = yield db_1.prismaClient.comment.findMany({
+                where: { tweetId: parent.id },
+                orderBy: { createdAt: "desc" },
+            });
+            return comments;
+        }),
+    },
+    Comment: {
+        author: (parent) => user_1.default.getUserById(parent.authorId),
     },
 };
 exports.resolvers = { queries, mutations, extraResolvers };

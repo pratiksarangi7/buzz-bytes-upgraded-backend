@@ -50,7 +50,12 @@ class UserService {
     }
     static getUserById(id) {
         return __awaiter(this, void 0, void 0, function* () {
-            return db_1.prismaClient.user.findUnique({ where: { id } });
+            const user = yield db_1.prismaClient.user.findUnique({
+                where: { id },
+                include: { tweets: true },
+            });
+            console.log(user);
+            return user;
         });
     }
     static followUser(from, to) {

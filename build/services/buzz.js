@@ -21,6 +21,7 @@ class TweetService {
                 data: {
                     content: data.content,
                     imageURL: data.imageURL,
+                    tag: data.tag,
                     author: { connect: { id: data.userId } },
                 },
             });
@@ -63,7 +64,9 @@ class TweetService {
     }
     static unlikeTweet(tweetId, userId) {
         return __awaiter(this, void 0, void 0, function* () {
-            yield db_1.prismaClient.like.delete({ where: { userId_tweetId: { userId, tweetId } } });
+            yield db_1.prismaClient.like.delete({
+                where: { userId_tweetId: { userId, tweetId } },
+            });
         });
     }
 }

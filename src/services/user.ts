@@ -57,7 +57,12 @@ class UserService {
     return userToken;
   }
   public static async getUserById(id: string) {
-    return prismaClient.user.findUnique({ where: { id } });
+    const user = await prismaClient.user.findUnique({
+      where: { id },
+      include: { tweets: true },
+    });
+    console.log(user);
+    return user;
   }
   public static followUser(from: string, to: string) {
     return prismaClient.follows.create({

@@ -1,3 +1,4 @@
+import { Tag } from "@prisma/client";
 import { prismaClient } from "../clients/db";
 import { redisClient } from "../clients/redis";
 
@@ -5,6 +6,7 @@ export interface CreateTweetPayload {
   content: string;
   imageURL?: string;
   userId?: string;
+  tag: Tag;
 }
 
 class TweetService {
@@ -17,6 +19,7 @@ class TweetService {
       data: {
         content: data.content,
         imageURL: data.imageURL,
+        tag: data.tag,
         author: { connect: { id: data.userId } },
       },
     });
@@ -53,7 +56,9 @@ class TweetService {
     await redisClient.del("ALL_TWEETS");
   }
   public static async unlikeTweet(tweetId: string, userId: string) {
-    await prismaClient.like.delete({where:{userId_tweetId:{userId, tweetId}}})
+    await prismaClient.like.delete({
+      where: { userId_tweetId: { userId, tweetId } },
+    });
   }
 }
 

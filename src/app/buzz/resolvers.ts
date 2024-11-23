@@ -1,4 +1,4 @@
-import { Tweet } from "@prisma/client";
+import { Comment, Tweet } from "@prisma/client";
 import { prismaClient } from "../../clients/db";
 import { GraphqlContext } from "../../interfaces";
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
@@ -48,6 +48,21 @@ const mutations = {
     });
     return tweet;
   },
+  createComment: async (
+    parent: any,
+    { payload }: { payload: { content: string; tweetId: string } },
+    ctx: GraphqlContext
+  ) => {
+    if (!ctx.user) throw new Error("You are not authenticated!!");
+    const comment = await prismaClient.comment.create({
+      data: {
+        content: payload.content,
+        tweet: { connect: { id: payload.tweetId } },
+        author: { connect: { id: ctx.user.id } },
+      },
+    });
+    return comment;
+  },
   likeTweet: async (
     parent: any,
     { tweetId }: { tweetId: string },
@@ -77,17 +92,24 @@ const extraResolvers = {
       const likeExists = await prismaClient.like.findUnique({
         where: { userId_tweetId: { userId: ctx.user.id, tweetId: parent.id } },
       });
-      console.log("resolved!!!");
       return Boolean(likeExists);
     },
     likeCount: async (parent: Tweet) => {
-      console.log("Starting like count resolve");
       const cnt = await prismaClient.like.count({
         where: { tweetId: parent.id },
       });
-      console.log("Resolved");
       return cnt;
     },
+    comments: async (parent: Tweet) => {
+      const comments = await prismaClient.comment.findMany({
+        where: { tweetId: parent.id },
+        orderBy: { createdAt: "desc" },
+      });
+      return comments;
+    },
+  },
+  Comment: {
+    author: (parent: Comment) => UserService.getUserById(parent.authorId),
   },
 };
 
