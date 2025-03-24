@@ -18,6 +18,9 @@ export async function initServer() {
   app.get("/", (req, res) =>
     res.status(200).json({ message: "Everything is good" })
   );
+  app.get("/health", (req, res) => {
+    res.status(200).json({ status: "ok" });
+  });
 
   const graphqlServer = new ApolloServer<GraphqlContext>({
     typeDefs: `
