@@ -22,7 +22,7 @@ jobs:
 
       - name: Deploy Blue-Green
         run: |
-          ssh pratik@147.93.107.157 << 'EOF'
+          ssh pratik@147.93.107.157 << EOF
             set -e  # Exit if any command fails
             echo "=== Starting deployment process ==="
 
@@ -73,6 +73,26 @@ jobs:
               git pull origin master
             fi
 
+            # Create .env file from GitHub Secrets
+            echo "-- Creating .env file --"
+            cat > .env << EOL
+            DATABASE_URL='${{ secrets.DATABASE_URL }}'
+            DIRECT_URL='${{ secrets.DIRECT_URL }}'
+            AWS_ACCESS_KEY_ID='${{ secrets.AWS_ACCESS_KEY_ID }}'
+            AWS_SECRET_ACCESS_KEY='${{ secrets.AWS_SECRET_ACCESS_KEY }}'
+            AWS_DEFAULT_REGION='${{ secrets.AWS_DEFAULT_REGION }}'
+            AWS_S3_BUCKET='${{ secrets.AWS_S3_BUCKET }}'
+            REDIS_URL='${{ secrets.REDIS_URL }}'
+            JWT_SECRET='${{ secrets.JWT_SECRET }}'
+            NODE_ENV=production
+            PORT=$NEW_PORT
+            # Add other environment variables here
+            EOL
+
+            echo "-- .env file contents (masking sensitive values) --"
+            sed 's/\(SECRET\|KEY\|URL\)=.*/\1=*****/g' .env
+
+
             # Build process
             echo "-- Installing dependencies --"
             npm install
@@ -84,7 +104,7 @@ jobs:
             # Start new deployment
             echo "-- Starting new deployment on port $NEW_PORT --"
             echo "Using PM2 name: $NEW_FOLDER"
-            PORT=$NEW_PORT pm2 start npm --name $NEW_FOLDER -- start
+            pm2 start npm --name $NEW_FOLDER -- start
             echo "PM2 list after new deployment start:"
             pm2 list
 
