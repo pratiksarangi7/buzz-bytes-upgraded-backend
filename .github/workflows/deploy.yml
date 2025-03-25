@@ -1,9 +1,9 @@
-name: Deploy to VPS
+name: Blue-Green Deployment
 
 on:
   push:
     branches:
-      - master
+      - master # Trigger deployment on pushes to master
 
 jobs:
   deploy:
@@ -20,13 +20,63 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H 147.93.107.157 >> ~/.ssh/known_hosts
 
-      - name: Deploy to VPS
+      - name: Deploy Blue-Green
         run: |
           ssh pratik@147.93.107.157 << 'EOF'
-            cd buzz-bytes-backend
-            git pull origin master  
+            set -e  # Exit if any command fails
+
+            # Read current active port from NGINX config
+            ACTIVE_PORT=\$(grep -oP '(?<=proxy_pass http://localhost:)[0-9]+' /etc/nginx/sites-available/api.buzzbytes.bytebuilderz.xyz)
+            if [ "\$ACTIVE_PORT" = "8000" ]; then
+              NEW_PORT=8001
+              NEW_FOLDER="buzz-bytes-green"
+              OLD_FOLDER="buzz-bytes-blue"
+            else
+              NEW_PORT=8000
+              NEW_FOLDER="buzz-bytes-blue"
+              OLD_FOLDER="buzz-bytes-green"
+            fi
+
+            echo "Active port: \$ACTIVE_PORT. Deploying new version in folder \$NEW_FOLDER on port \$NEW_PORT."
+
+            # Create the new deployment folder if it doesn't exist
+            mkdir -p ~/\$NEW_FOLDER
+            cd ~/\$NEW_FOLDER
+
+            # Clone repo if folder is empty; otherwise, pull latest changes
+            if [ ! -d ".git" ]; then
+              git clone -b master https://github.com/pratiksarangi7/buzz-bytes-upgraded-backend.git .
+            else
+              git pull origin master
+            fi
+
+            # Install dependencies, run Prisma, and build the project
             npm install
             npx prisma generate
             npm run build
-            pm2 restart buzzbytes-api
+
+            # Start new deployment on NEW_PORT using PM2.
+            pm2 start npm --name \$NEW_FOLDER -- start -- --port=\$NEW_PORT || pm2 restart \$NEW_FOLDER
+
+            # Wait for a few seconds for the new deployment to start up
+            sleep 10
+
+            # Check if the new deployment is healthy by calling its /health endpoint
+            if curl -s http://127.0.0.1:\$NEW_PORT/health | grep "Everything is good"; then
+              echo "New deployment is healthy. Updating NGINX to point to port \$NEW_PORT."
+              
+              # Update NGINX config to use the new active port
+              sudo sed -i "s/proxy_pass http:\/\/localhost:[0-9]*/proxy_pass http:\/\/localhost:\$NEW_PORT/" /etc/nginx/sites-available/api.buzzbytes.bytebuilderz.xyz
+              sudo systemctl reload nginx
+
+              # Stop the old deployment (if it exists)
+              pm2 delete \$OLD_FOLDER || true
+
+              # Optionally, rename the new process to a standard name for future deployments
+              pm2 rename \$NEW_FOLDER buzzbytes-api
+            else
+              echo "New deployment is not healthy; rolling back."
+              pm2 delete \$NEW_FOLDER
+              exit 1
+            fi
           EOF
