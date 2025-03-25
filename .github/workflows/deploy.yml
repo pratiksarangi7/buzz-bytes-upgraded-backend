@@ -3,7 +3,7 @@ name: Blue-Green Deployment
 on:
   push:
     branches:
-      - master # Trigger deployment on pushes to master
+      - master
 
 jobs:
   deploy:
@@ -31,11 +31,9 @@ jobs:
             if [ "$ACTIVE_PORT" = "8000" ]; then
               NEW_PORT=8001
               NEW_FOLDER="buzz-bytes-green"
-              OLD_FOLDER="buzz-bytes-blue"
             else
               NEW_PORT=8000
-              NEW_FOLDER="buzz-bytes-blue"  
-              OLD_FOLDER="buzz-bytes-green"
+              NEW_FOLDER="buzz-bytes-blue"
             fi
 
             echo "Active port: $ACTIVE_PORT. Deploying new version in folder $NEW_FOLDER on port $NEW_PORT."
@@ -54,8 +52,8 @@ jobs:
             npx prisma generate
             npm run build
 
-            # Start or restart app using PM2 with the new port
-            PORT=$NEW_PORT pm2 start npm --name $NEW_FOLDER -- start --update-env || pm2 restart $NEW_FOLDER --update-env
+            # Start new deployment with unique name
+            PORT=$NEW_PORT pm2 start npm --name $NEW_FOLDER -- start
 
             # Wait for the new deployment to initialize
             sleep 10
@@ -66,19 +64,26 @@ jobs:
             if echo "$HEALTH_OUTPUT" | grep -E -q '"status"\s*:\s*"ok"'; then
               echo "New deployment is healthy. Updating NGINX to point to port $NEW_PORT."
               
-              # Update NGINX config to use the new active port
+              # Update NGINX config
               sudo sed -i "s/proxy_pass http:\/\/localhost:[0-9]*/proxy_pass http:\/\/localhost:$NEW_PORT/" /etc/nginx/sites-available/api.buzzbytes.bytebuilderz.xyz
               sudo systemctl reload nginx
-            
-              # Stop the old deployment (if it exists)
-              pm2 delete $OLD_FOLDER || true
-            
-              # Rename the new process to a standard name for future deployments
+
+              # Stop the old API process
+              pm2 delete buzzbytes-api || true
+              
+              # Rename new deployment to standard name
               pm2 rename $NEW_FOLDER buzzbytes-api
             else
               echo "New deployment failed health check. Rolling back."
               pm2 delete $NEW_FOLDER
               exit 1
+            fi
+
+            # Cleanup old deployment folders (optional)
+            if [ "$NEW_FOLDER" = "buzz-bytes-blue" ]; then
+              rm -rf ~/buzz-bytes-green
+            else
+              rm -rf ~/buzz-bytes-blue
             fi
 
           EOF
