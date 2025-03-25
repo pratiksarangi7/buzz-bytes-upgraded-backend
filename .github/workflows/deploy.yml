@@ -26,7 +26,7 @@ jobs:
             set -e  # Exit if any command fails
 
             # Read current active port from NGINX config
-            ACTIVE_PORT=$(grep -oP '(?<=proxy_pass\s+http:\/\/localhost:)[0-9]+' /etc/nginx/sites-available/api.buzzbytes.bytebuilderz.xyz || echo "")
+            ACTIVE_PORT=\$(grep -oP 'proxy_pass http://localhost:\K\d+' /etc/nginx/sites-available/api.buzzbytes.bytebuilderz.xyz)
             echo "Detected ACTIVE_PORT=$ACTIVE_PORT" | tee ~/active_port.log
             if [ "$ACTIVE_PORT" = "8000" ]; then
               NEW_PORT=8001
