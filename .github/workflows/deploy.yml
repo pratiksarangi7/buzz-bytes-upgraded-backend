@@ -61,7 +61,7 @@ jobs:
             sleep 10
 
             # Health check
-            if curl -s http://127.0.0.1:$NEW_PORT/health | grep "Everything is good"; then
+            if curl -s http://127.0.0.1:$NEW_PORT/health | grep '"status":"ok"'; then
               echo "New deployment is healthy. Updating NGINX to point to port $NEW_PORT."
               
               # Update NGINX config to use the new active port
