@@ -55,7 +55,7 @@ jobs:
             npm run build
 
             # Start or restart app using PM2 with the new port
-            pm2 start npm --name $NEW_FOLDER -- start -- --port=$NEW_PORT || pm2 restart $NEW_FOLDER
+            PORT=$NEW_PORT pm2 start npm --name $NEW_FOLDER -- start --update-env || pm2 restart $NEW_FOLDER --update-env
 
             # Wait for the new deployment to initialize
             sleep 10
