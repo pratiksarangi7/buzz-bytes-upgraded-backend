@@ -22,18 +22,18 @@ jobs:
 
       - name: Deploy Blue-Green
         run: |
-          ssh pratik@147.93.107.157 << EOF
+          ssh pratik@147.93.107.157 << 'EOF'
             set -e  # Exit if any command fails
             echo "=== Starting deployment process ==="
 
             # Read current active port from NGINX config
             echo "-- Checking current active port --"
-            ACTIVE_PORT=\$(grep -oP 'proxy_pass http://localhost:\K\d+' /etc/nginx/sites-available/api.buzzbytes.bytebuilderz.xyz || echo "8000")
-            echo "Detected ACTIVE_PORT=\$ACTIVE_PORT" | tee ~/active_port.log
+            ACTIVE_PORT=$(grep -oP 'proxy_pass http://localhost:\K\d+' /etc/nginx/sites-available/api.buzzbytes.bytebuilderz.xyz || echo "8000")
+            echo "Detected ACTIVE_PORT=$ACTIVE_PORT" | tee ~/active_port.log
             
             # Determine deployment strategy
             echo "-- Determining deployment strategy --"
-            if [ "\$ACTIVE_PORT" = "8000" ]; then
+            if [ "$ACTIVE_PORT" = "8000" ]; then
               NEW_PORT=8001
               NEW_FOLDER="buzz-bytes-green"
               OLD_FOLDER="buzz-bytes-blue"
@@ -46,22 +46,22 @@ jobs:
             fi
 
             echo "=== Deployment parameters ==="
-            echo "NEW_PORT: \$NEW_PORT"
-            echo "NEW_FOLDER: \$NEW_FOLDER"
-            echo "OLD_FOLDER: \$OLD_FOLDER"
+            echo "NEW_PORT: $NEW_PORT"
+            echo "NEW_FOLDER: $NEW_FOLDER"
+            echo "OLD_FOLDER: $OLD_FOLDER"
 
             # Clean up old deployment process
-            echo "-- Cleaning up previous \$OLD_FOLDER deployment --"
-            pm2 delete \$OLD_FOLDER || echo "No existing \$OLD_FOLDER process to delete"
+            echo "-- Cleaning up previous $OLD_FOLDER deployment --"
+            pm2 delete $OLD_FOLDER || echo "No existing $OLD_FOLDER process to delete"
             echo "PM2 list after cleanup:"
             pm2 list
 
             # Setup deployment directory
-            echo "-- Setting up deployment directory: \$NEW_FOLDER --"
-            rm -rf ~/\$NEW_FOLDER
-            mkdir -p ~/\$NEW_FOLDER
-            cd ~/\$NEW_FOLDER
-            echo "Current directory: \$(pwd)"
+            echo "-- Setting up deployment directory: $NEW_FOLDER --"
+            rm -rf ~/$NEW_FOLDER
+            mkdir -p ~/$NEW_FOLDER
+            cd ~/$NEW_FOLDER
+            echo "Current directory: $(pwd)"
 
             # Update codebase
             echo "-- Updating codebase --"
@@ -69,7 +69,7 @@ jobs:
 
             # Create .env file
             echo "-- Creating .env file --"
-            cat > .env << EOL
+            cat > .env << 'ENVFILE'
 DATABASE_URL='${{ secrets.DATABASE_URL }}'
 DIRECT_URL='${{ secrets.DIRECT_URL }}'
 AWS_ACCESS_KEY_ID='${{ secrets.AWS_ACCESS_KEY_ID }}'
@@ -79,8 +79,8 @@ AWS_S3_BUCKET='${{ secrets.AWS_S3_BUCKET }}'
 REDIS_URL='${{ secrets.REDIS_URL }}'
 JWT_SECRET='${{ secrets.JWT_SECRET }}'
 NODE_ENV=production
-PORT=\$NEW_PORT
-EOL
+PORT=$NEW_PORT
+ENVFILE
 
             # Verify and secure .env
             echo "-- .env file contents (masked) --"
@@ -96,8 +96,8 @@ EOL
             npm run build
 
             # Start new deployment
-            echo "-- Starting new deployment on port \$NEW_PORT --"
-            pm2 start npm --name \$NEW_FOLDER -- start
+            echo "-- Starting new deployment on port $NEW_PORT --"
+            pm2 start npm --name $NEW_FOLDER -- start
             echo "PM2 list after new deployment start:"
             pm2 list
 
@@ -107,38 +107,38 @@ EOL
 
             # Health check
             echo "-- Performing health check --"
-            HEALTH_CHECK_URL="http://127.0.0.1:\$NEW_PORT/health"
-            echo "Health check URL: \$HEALTH_CHECK_URL"
-            HEALTH_OUTPUT=\$(curl -s \$HEALTH_CHECK_URL)
-            echo "Raw health check output: \$HEALTH_OUTPUT"
+            HEALTH_CHECK_URL="http://127.0.0.1:$NEW_PORT/health"
+            echo "Health check URL: $HEALTH_CHECK_URL"
+            HEALTH_OUTPUT=$(curl -s $HEALTH_CHECK_URL)
+            echo "Raw health check output: $HEALTH_OUTPUT"
             
-            if echo "\$HEALTH_OUTPUT" | grep -E -q '"status"\s*:\s*"ok"'; then
+            if echo "$HEALTH_OUTPUT" | grep -E -q '"status"\s*:\s*"ok"'; then
               echo "+++ Health check successful +++"
               
               # Update NGINX config
               echo "-- Updating NGINX configuration --"
-              sudo sed -i "s/proxy_pass http:\/\/localhost:[0-9]*/proxy_pass http:\/\/localhost:\$NEW_PORT/" /etc/nginx/sites-available/api.buzzbytes.bytebuilderz.xyz
+              sudo sed -i "s/proxy_pass http:\/\/localhost:[0-9]*/proxy_pass http:\/\/localhost:$NEW_PORT/" /etc/nginx/sites-available/api.buzzbytes.bytebuilderz.xyz
               sudo nginx -t && sudo systemctl reload nginx
-              echo "NGINX reload status: \$?"
+              echo "NGINX reload status: $?"
 
               # Switch PM2 process
               echo "-- Switching to new deployment --"
               pm2 stop buzzbytes-api || true
               pm2 delete buzzbytes-api || true
-              pm2 restart \$NEW_FOLDER --name buzzbytes-api --update-env
+              pm2 restart $NEW_FOLDER --name buzzbytes-api --update-env
               pm2 save
               echo "Final PM2 list:"
               pm2 list
             else
               echo "!!! Health check failed !!!"
               echo "Rolling back deployment"
-              pm2 delete \$NEW_FOLDER
+              pm2 delete $NEW_FOLDER
               exit 1
             fi
 
             # Cleanup old deployment
-            echo "-- Cleaning up old deployment folder: \$OLD_FOLDER --"
-            rm -rf ~/\$OLD_FOLDER
+            echo "-- Cleaning up old deployment folder: $OLD_FOLDER --"
+            rm -rf ~/$OLD_FOLDER
             echo "Remaining directories:"
             ls -l ~/
 
