@@ -1,58 +1,68 @@
-- name: Deploy Blue-Green
-  run: |
-    ssh pratik@147.93.107.157 << 'EOF'
-      set -e  # Exit if any command fails
-      
-      # Read current active port from NGINX config
-      ACTIVE_PORT=$(grep -oP '(?<=proxy_pass http://localhost:)[0-9]+' /etc/nginx/sites-available/api.buzzbytes.bytebuilderz.xyz || echo "")
+name: Deploy to Production
 
-      if [ "$ACTIVE_PORT" = "8000" ]; then
-        NEW_PORT=8001
-        NEW_FOLDER="buzz-bytes-green"
-        OLD_FOLDER="buzz-bytes-blue"
-      else
-        NEW_PORT=8000
-        NEW_FOLDER="buzz-bytes-blue"
-        OLD_FOLDER="buzz-bytes-green"
-      fi
+on:
+  push:
+    branches: [master]
 
-      echo "Active port: $ACTIVE_PORT. Deploying new version in folder $NEW_FOLDER on port $NEW_PORT."
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy Blue-Green
+        run: |
+          ssh pratik@147.93.107.157 << 'EOF'
+            set -e  # Exit if any command fails
+            
+            # Read current active port from NGINX config
+            ACTIVE_PORT=$(grep -oP '(?<=proxy_pass http://localhost:)[0-9]+' /etc/nginx/sites-available/api.buzzbytes.bytebuilderz.xyz || echo "")
 
-      # Ensure deployment folder exists
-      mkdir -p ~/$NEW_FOLDER
-      cd ~/$NEW_FOLDER
+            if [ "$ACTIVE_PORT" = "8000" ]; then
+              NEW_PORT=8001
+              NEW_FOLDER="buzz-bytes-green"
+              OLD_FOLDER="buzz-bytes-blue"
+            else
+              NEW_PORT=8000
+              NEW_FOLDER="buzz-bytes-blue"
+              OLD_FOLDER="buzz-bytes-green"
+            fi
 
-      # Clone or pull latest code
-      if [ ! -d ".git" ]; then
-        git clone -b master https://github.com/pratiksarangi7/buzz-bytes-upgraded-backend.git .
-      else
-        git pull origin master
-      fi
+            echo "Active port: $ACTIVE_PORT. Deploying new version in folder $NEW_FOLDER on port $NEW_PORT."
 
-      # Install dependencies, Prisma, and build
-      npm install
-      npx prisma generate
-      npm run build
+            # Ensure deployment folder exists
+            mkdir -p ~/$NEW_FOLDER
+            cd ~/$NEW_FOLDER
 
-      # Start or restart app using PM2
-      pm2 start npm --name $NEW_FOLDER -- start -- --port=$NEW_PORT || pm2 restart $NEW_FOLDER
+            # Clone or pull latest code
+            if [ ! -d ".git" ]; then
+              git clone -b master https://github.com/pratiksarangi7/buzz-bytes-upgraded-backend.git .
+            else
+              git pull origin master
+            fi
 
-      # Wait for app to start
-      sleep 10
+            # Install dependencies, Prisma, and build
+            npm install
+            npx prisma generate
+            npm run build
 
-      # Health check
-      if curl -s http://127.0.0.1:$NEW_PORT/health | grep "Everything is good"; then
-        echo "New deployment is healthy. Updating NGINX to point to port $NEW_PORT."
+            # Start or restart app using PM2
+            pm2 start npm --name $NEW_FOLDER -- start -- --port=$NEW_PORT || pm2 restart $NEW_FOLDER
 
-        sudo sed -i "s/proxy_pass http:\/\/localhost:[0-9]*/proxy_pass http:\/\/localhost:$NEW_PORT/" /etc/nginx/sites-available/api.buzzbytes.bytebuilderz.xyz
-        sudo systemctl reload nginx
+            # Wait for app to start
+            sleep 10
 
-        # Stop old process
-        pm2 delete $OLD_FOLDER || true
-        pm2 rename $NEW_FOLDER buzzbytes-api
-      else
-        echo "New deployment failed health check. Rolling back."
-        pm2 delete $NEW_FOLDER
-        exit 1
-      fi
-    EOF
+            # Health check
+            if curl -s http://127.0.0.1:$NEW_PORT/health | grep "Everything is good"; then
+              echo "New deployment is healthy. Updating NGINX to point to port $NEW_PORT."
+
+              sudo sed -i "s/proxy_pass http:\/\/localhost:[0-9]*/proxy_pass http:\/\/localhost:$NEW_PORT/" /etc/nginx/sites-available/api.buzzbytes.bytebuilderz.xyz
+              sudo systemctl reload nginx
+
+              # Stop old process
+              pm2 delete $OLD_FOLDER || true
+              pm2 rename $NEW_FOLDER buzzbytes-api
+            else
+              echo "New deployment failed health check. Rolling back."
+              pm2 delete $NEW_FOLDER
+              exit 1
+            fi
+          EOF
