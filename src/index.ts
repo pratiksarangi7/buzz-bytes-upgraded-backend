@@ -5,8 +5,10 @@ dotenv.config();
 
 async function init() {
   const app = await initServer();
-  app.listen(8000, () => {
-    console.log("server started at port 8000");
+  const PORT = process.env.PORT || 8000;
+
+  app.listen(PORT, () => {
+    console.log(`Server started at port ${PORT}`);
   });
 }
 
